@@ -24,96 +24,116 @@ void printUsage(const char* programName) {
 // Обрабатывает один запрос клиента
 bool processClientRequest(Client& client) {
     // 1. Ввод описания графа
-    cout << "\nВведите описание графа (формат: A B, B C, C D, ...):" << endl;
-    cout << "или 'exit' для завершения работы: ";
+    std::cout << "\nВведите описание графа (формат: A B, B C, C D, ...):" << std::endl;
+    std::cout << "или 'exit' для завершения работы: ";
     
-    string graphInput;
-    getline(cin, graphInput);
+    std::string graphInput;
+    std::getline(std::cin, graphInput);
     
     // Проверяем команду выхода
     if (graphInput == "exit") {
         return false;
     }
     
-    // Парсим граф
-    vector<InputParser::Edge> edges;
-    if (!InputParser::parseGraph(graphInput, edges)) {
+    // Парсим граф (получаем рёбра со строковыми именами)
+    std::vector<InputParser::Edge> stringEdges;
+    if (!InputParser::parseGraph(graphInput, stringEdges)) {
         Logger::error("Неверный формат ввода графа");
         return true; // Продолжаем работу
     }
     
-    // Подсчитываем количество уникальных вершин
-    vector<string> vertices;
-    for (const auto& edge : edges) {
-        // Добавляем вершины, если их ещё нет в списке
-        if (find(vertices.begin(), vertices.end(), edge.vertex1) == vertices.end()) {
-            vertices.push_back(edge.vertex1);
-        }
-        if (find(vertices.begin(), vertices.end(), edge.vertex2) == vertices.end()) {
-            vertices.push_back(edge.vertex2);
-        }
+    // Преобразуем строковые имена в числовые индексы
+    std::vector<std::pair<int, int>> numericEdges;
+    std::map<std::string, int> vertexMap;
+    InputParser::convertToNumeric(stringEdges, numericEdges, vertexMap);
+    
+    // Формируем список рёбер в формате vector<vector<int>>
+    std::vector<std::vector<int>> edges;
+    for (const auto& edge : numericEdges) {
+        edges.push_back({edge.first, edge.second});
     }
     
     // Валидация размера графа
-    string errorMessage;
-    if (!Validator::isValidGraphSize(vertices.size(), edges.size(), errorMessage)) {
+    int numVertices = vertexMap.size();
+    int numEdges = edges.size();
+    
+    std::string errorMessage;
+    if (!Validator::isValidGraphSize(numVertices, numEdges, errorMessage)) {
         Logger::error(errorMessage);
         return true;
     }
     
     // 2. Ввод начальной и конечной вершин
-    cout << "Введите начальную и конечную вершины (формат: A B): ";
-    string verticesInput;
-    getline(cin, verticesInput);
+    std::cout << "Введите начальную и конечную вершины (формат: A B): ";
+    std::string verticesInput;
+    std::getline(std::cin, verticesInput);
     
-    string startVertex, endVertex;
-    if (!InputParser::parseVertices(verticesInput, startVertex, endVertex)) {
+    std::string startVertexName, endVertexName;
+    if (!InputParser::parseVertices(verticesInput, startVertexName, endVertexName)) {
         Logger::error("Неверный формат вершин");
         return true;
     }
     
     // Проверяем, что вершины существуют в графе
-    if (!Validator::isValidVertex(startVertex, vertices)) {
+    if (!Validator::isValidVertex(startVertexName, vertexMap)) {
         Logger::error("Вершины не найдены в графе");
         return true;
     }
-    if (!Validator::isValidVertex(endVertex, vertices)) {
+    if (!Validator::isValidVertex(endVertexName, vertexMap)) {
         Logger::error("Вершины не найдены в графе");
         return true;
     }
+    
+    // Получаем числовые индексы вершин
+    int startVertex = InputParser::getVertexIndex(startVertexName, vertexMap);
+    int endVertex = InputParser::getVertexIndex(endVertexName, vertexMap);
     
     // 3. Формируем запрос
-    Protocol::Request request;
-    request.startVertex = startVertex;
-    request.endVertex = endVertex;
-    
-    // Преобразуем рёбра в формат протокола
-    for (const auto& edge : edges) {
-        request.edges.push_back({edge.vertex1, edge.vertex2});
-    }
+    ClientRequest request;
+    request.start_node = startVertex;
+    request.end_node = endVertex;
     
     // 4. Отправляем запрос на сервер
-    Protocol::Response response;
-    if (!client.sendRequest(request, response)) {
+    ServerResponse response;
+    if (!client.sendRequest(request, edges, response)) {
         Logger::error("Не удалось получить ответ от сервера");
         return false; // Прекращаем работу при ошибке связи
     }
     
     // 5. Обрабатываем ответ
-    if (response.success) {
-        cout << "\nРезультат: " << response.pathLength << endl;
+    if (response.error_code == SUCCESS) {
+        std::cout << "\nРезультат: " << response.path_length << endl;
         
-        // Выводим путь
-        cout << "Путь: ";
+        // Создаём обратный словарь (индекс -> имя)
+        std::map<int, std::string> indexToName;
+        for (const auto& pair : vertexMap) {
+            indexToName[pair.second] = pair.first;
+        }
+        
+        // Выводим путь с именами вершин
+        std::cout << "Путь: ";
         for (size_t i = 0; i < response.path.size(); i++) {
-            cout << response.path[i];
+            int nodeIndex = response.path[i];
+            
+            // Находим имя вершины по индексу
+            if (indexToName.find(nodeIndex) != indexToName.end()) {
+                std::cout << indexToName[nodeIndex];
+            } else {
+                std::cout << nodeIndex; // На случай, если имя не найдено
+            }
+            
             if (i < response.path.size() - 1) {
-                cout << " -> ";
+                std::cout << " -> ";
             }
         }
-        cout << endl;
+        std::cout << endl;
+        
+    } else if (response.error_code == NO_PATH) {
+        Logger::error("Путь между вершинами не существует");
+    } else if (response.error_code == INVALID_REQUEST) {
+        Logger::error("Неверный запрос");
     } else {
-        Logger::error(response.errorMessage);
+        Logger::error("Неизвестная ошибка");
     }
     
     return true; // Продолжаем работу

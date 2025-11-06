@@ -79,7 +79,7 @@ private:
 
     // Парсит граф из запроса, выполняет алгоритм Дейкстры,
     // формирует ответ с результатом или ошибкой
-    void processRequest(const Protocol::Request& request, Protocol::Response& response);
+    void processRequest(const ClientRequest& request, const vector<vector<int>>& edges, ServerResponse& response);
 
     // Отправляет данные по TCP
     // socket Сокет клиента

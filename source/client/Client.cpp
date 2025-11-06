@@ -96,21 +96,51 @@ bool Client::createSocket() {
 }
 
 // Отправляет запрос и получает ответ
-bool Client::sendRequest(const Protocol::Request& request, Protocol::Response& response) {
+bool Client::sendRequest(const ClientRequest& request, const vector<vector<int>>& edges, ServerResponse& response) {
     if (!connected) {
         Logger::error("Не подключён к серверу");
         return false;
     }
     
-    // Сериализуем запрос
-    string requestData = Protocol::serializeRequest(request);
+    // Сериализуем запрос (start_node + end_node = 8 байт)
+    vector<char> requestData = requestToBytes(request);
     
-    // Отправляем запрос
+    // Формируем данные о рёбрах
+    vector<char> edgesData;
+    
+    // Первые 4 байта - количество рёбер
+    int numEdges = edges.size();
+    edgesData.resize(sizeof(int));
+    memcpy(edgesData.data(), &numEdges, sizeof(int));
+    
+    // Добавляем сами рёбра (каждое ребро = 8 байт: from + to)
+    for (const auto& edge : edges) {
+        if (edge.size() != 2) {
+            Logger::error("Некорректное ребро (должно быть 2 вершины)");
+            return false;
+        }
+        
+        int from = edge[0];
+        int to = edge[1];
+        
+        size_t oldSize = edgesData.size();
+        edgesData.resize(oldSize + 2 * sizeof(int));
+        
+        memcpy(edgesData.data() + oldSize, &from, sizeof(int));
+        memcpy(edgesData.data() + oldSize + sizeof(int), &to, sizeof(int));
+    }
+    
+    // Отправляем данные
     bool sent = false;
+    
     if (protocol == "tcp") {
-        sent = sendTCP(requestData);
+        // TCP: отправляем запрос и рёбра отдельно
+        sent = sendTCP(requestData) && sendTCP(edgesData);
     } else {
-        sent = sendUDP(requestData);
+        // UDP: объединяем всё в один пакет
+        vector<char> allData = requestData;
+        allData.insert(allData.end(), edgesData.begin(), edgesData.end());
+        sent = sendUDP(allData);
     }
     
     if (!sent) {
@@ -119,7 +149,7 @@ bool Client::sendRequest(const Protocol::Request& request, Protocol::Response& r
     }
     
     // Получаем ответ
-    string responseData;
+    vector<char> responseData;
     bool received = false;
     
     if (protocol == "tcp") {
@@ -134,10 +164,7 @@ bool Client::sendRequest(const Protocol::Request& request, Protocol::Response& r
     }
     
     // Десериализуем ответ
-    if (!Protocol::deserializeResponse(responseData, response)) {
-        Logger::error("Ошибка десериализации ответа");
-        return false;
-    }
+    response = bytesToResponse(responseData);
     
     return true;
 }

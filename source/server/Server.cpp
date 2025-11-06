@@ -139,7 +139,7 @@ void Server::run() {
 // Обрабатывает TCP-клиента
 void Server::handleTCPClient(int clientSocket) {
     while (isRunning) {
-        string requestData;
+        vector<char> requestData;
         
         // Получаем данные от клиента
         if (!receiveTCP(clientSocket, requestData)) {
@@ -148,18 +148,45 @@ void Server::handleTCPClient(int clientSocket) {
         }
         
         // Десериализуем запрос
-        Protocol::Request request;
-        if (!Protocol::deserializeRequest(requestData, request)) {
-            Logger::error("Ошибка десериализации запроса");
-            continue;
+        // requestData содержит: start_node (4 байта) + end_node (4 байта)
+        ClientRequest request = bytesToRequest(requestData);
+        
+        // Теперь нужно получить рёбра графа
+        // Для простоты: клиент отправляет сначала количество рёбер, потом сами рёбра
+        vector<char> edgesData;
+        if (!receiveTCP(clientSocket, edgesData)) {
+            break;
+        }
+        
+        // Парсим рёбра: первые 4 байта - количество рёбер
+        if (edgesData.size() < sizeof(int)) {
+            Logger::error("Некорректные данные о рёбрах");
+            break;
+        }
+        
+        int numEdges;
+        memcpy(&numEdges, edgesData.data(), sizeof(int));
+        
+        // Остальные данные - сами рёбра (каждое ребро = 8 байт: from + to)
+        vector<vector<int>> edges;
+        size_t offset = sizeof(int);
+        
+        for (int i = 0; i < numEdges && offset + 2 * sizeof(int) <= edgesData.size(); i++) {
+            int from, to;
+            memcpy(&from, edgesData.data() + offset, sizeof(int));
+            offset += sizeof(int);
+            memcpy(&to, edgesData.data() + offset, sizeof(int));
+            offset += sizeof(int);
+            
+            edges.push_back({from, to});
         }
         
         // Обрабатываем запрос
-        Protocol::Response response;
-        processRequest(request, response);
+        ServerResponse response;
+        processRequest(request, edges, response);
         
         // Сериализуем ответ
-        string responseData = Protocol::serializeResponse(response);
+        vector<char> responseData = responseToBytes(response);
         
         // Отправляем ответ клиенту
         if (!sendTCP(clientSocket, responseData)) {
@@ -175,29 +202,51 @@ void Server::handleTCPClient(int clientSocket) {
 // Обрабатывает UDP-клиентов
 void Server::handleUDPClient() {
     while (isRunning) {
-        string requestData;
+        vector<char> allData;
         sockaddr_in clientAddr;
         
         // Получаем датаграмму
-        if (!receiveUDP(requestData, clientAddr)) {
+        if (!receiveUDP(allData, clientAddr)) {
             continue;
         }
         
-        // Десериализуем запрос
-        Protocol::Request request;
-        if (!Protocol::deserializeRequest(requestData, request)) {
-            Logger::error("Ошибка десериализации запроса");
+        // Минимальный размер: запрос (8 байт) + количество рёбер (4 байта)
+        if (allData.size() < 12) {
+            Logger::error("Слишком маленький пакет данных");
             continue;
+        }
+        
+        // Первые 8 байт - запрос
+        vector<char> requestData(allData.begin(), allData.begin() + 8);
+        ClientRequest request = bytesToRequest(requestData);
+        
+        // Остальное - данные о рёбрах
+        vector<char> edgesData(allData.begin() + 8, allData.end());
+        
+        int numEdges;
+        memcpy(&numEdges, edgesData.data(), sizeof(int));
+        
+        vector<vector<int>> edges;
+        size_t offset = sizeof(int);
+        
+        for (int i = 0; i < numEdges && offset + 2 * sizeof(int) <= edgesData.size(); i++) {
+            int from, to;
+            memcpy(&from, edgesData.data() + offset, sizeof(int));
+            offset += sizeof(int);
+            memcpy(&to, edgesData.data() + offset, sizeof(int));
+            offset += sizeof(int);
+            
+            edges.push_back({from, to});
         }
         
         Logger::info("Получен запрос от UDP-клиента");
         
         // Обрабатываем запрос
-        Protocol::Response response;
-        processRequest(request, response);
+        ServerResponse response;
+        processRequest(request, edges, response);
         
         // Сериализуем ответ
-        string responseData = Protocol::serializeResponse(response);
+        vector<char> responseData = responseToBytes(response);
         
         // Отправляем ответ
         sendUDP(responseData, clientAddr);
@@ -205,45 +254,74 @@ void Server::handleUDPClient() {
 }
 
 // Обрабатывает запрос клиента
-void Server::processRequest(const Protocol::Request& request, 
-                            Protocol::Response& response) {
-    // Создаём граф из данных запроса
+void Server::processRequest(const ClientRequest& request, const vector<vector<int>>& edges, ServerResponse& response) {
+    // Создаём граф
     Graph graph;
     
-    // Добавляем все рёбра в граф
-    for (const auto& edge : request.edges) {
-        // Вес всегда равен 1 (по требованиям)
-        graph.addEdge(edge.first, edge.second, 1);
-    }
-    
-    // Проверяем, что начальная и конечная вершины существуют
-    vector<string> allVertices = graph.getVertices();
-    if (!Validator::isValidVertex(request.startVertex, allVertices)) {
-        response.success = false;
-        response.errorMessage = "Вершины не найдены в графе";
-        return;
-    }
-    if (!Validator::isValidVertex(request.endVertex, allVertices)) {
-        response.success = false;
-        response.errorMessage = "Вершины не найдены в графе";
+    try {
+        // Добавляем все рёбра в граф
+        graph.addEdges(edges);
+        
+        // Проверяем размер графа согласно требованиям
+        if (!graph.hasMinimumSize()) {
+            response.error_code = INVALID_REQUEST;
+            response.path_length = 0;
+            Logger::warning("Граф не соответствует минимальному размеру");
+            return;
+        }
+        
+        if (!graph.hasMaximumSize()) {
+            response.error_code = INVALID_REQUEST;
+            response.path_length = 0;
+            Logger::warning("Граф превышает максимальный размер");
+            return;
+        }
+        
+        // Проверяем, что обе вершины существуют в графе
+        if (!graph.containsVertices(request.start_node, request.end_node)) {
+            response.error_code = INVALID_REQUEST;
+            response.path_length = 0;
+            Logger::warning("Вершины не найдены в графе");
+            return;
+        }
+        
+    } catch (const voexception& e) {
+        response.error_code = INVALID_REQUEST;
+        response.path_length = 0;
+        Logger::error(string("Ошибка при построении графа: ") + e.what());
         return;
     }
     
     // Запускаем алгоритм Дейкстры
-    vector<string> path;
-    int distance = Dijkstra::findShortestPath(graph, request.startVertex, 
-                                              request.endVertex, path);
+    // Создаём объект Dijkstra с количеством вершин
+    int maxNode = 0;
+    for (const auto& edge : edges) {
+        maxNode = max(maxNode, max(edge[0], edge[1]));
+    }
+    
+    Dijkstra dijkstra(maxNode + 1); // +1 потому что индексы от 0
+    
+    // Добавляем все рёбра в алгоритм
+    for (const auto& edge : edges) {
+        dijkstra.addEdge(edge[0], edge[1]);
+        dijkstra.addEdge(edge[1], edge[0]); // Неориентированный граф
+    }
+    
+    // Находим путь
+    pair<int, vector<int>> result = dijkstra.findPath(request.start_node, request.end_node);
     
     // Проверяем результат
-    if (distance == -1) {
+    if (result.first == INF) {
         // Путь не найден
-        response.success = false;
-        response.errorMessage = "Путь между вершинами не существует";
+        response.error_code = NO_PATH;
+        response.path_length = 0;
+        Logger::warning("Путь между вершинами не существует");
     } else {
         // Путь найден
-        response.success = true;
-        response.pathLength = distance;
-        response.path = path;
+        response.error_code = SUCCESS;
+        response.path_length = result.first; // Длина пути
+        response.path = result.second;       // Сам путь
+        Logger::info("Путь найден, длина: " + to_string(result.first));
     }
 }
 

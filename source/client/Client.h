@@ -52,7 +52,7 @@ public:
     //         cout << "Длина пути: " << response.pathLength << endl;
     //     }
     // }
-    bool sendRequest(const Protocol::Request& request, Protocol::Response& response);
+    bool sendRequest(const ClientRequest& request, const vector<vector<int>>& edges, ServerResponse& response);
 
     // Проверяет, установлено ли соединение
     // true, если клиент подключён к серверу
