@@ -1,66 +1,47 @@
-# Минимальная версия CMake
 cmake_minimum_required(VERSION 3.10)
-
-# Название проекта
 project(ClientServerApp)
 
-# Используем стандарт C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Флаги компиляции для предупреждений
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
-# Подключаем директорию с заголовочными файлами
-include_directories(${CMAKE_SOURCE_DIR}/source)
-
-# ===================== ОБЩИЕ ФАЙЛЫ ======================
-# Эти файлы используются и клиентом, и сервером
-set(COMMON_SOURCES
-    source/common/Graph.cpp
-    source/common/Protocol.cpp
+# Явно указываем ВСЕ include директории
+include_directories(
+    ${CMAKE_SOURCE_DIR}/source
+    ${CMAKE_SOURCE_DIR}/source/common
+    ${CMAKE_SOURCE_DIR}/source/utils
+    ${CMAKE_SOURCE_DIR}/source/server
+    ${CMAKE_SOURCE_DIR}/source/client
 )
 
-# ===================== УТИЛИТЫ ======================
-# Вспомогательные классы
-set(UTILS_SOURCES
-    source/utils/InputParser.cpp
-    source/utils/Validator.cpp
-    source/utils/Logger.cpp
-)
-
-# ===================== СЕРВЕРНАЯ ЧАСТЬ ======================
-# Исходники сервера
-set(SERVER_SOURCES
+# Сервер
+add_executable(server
     source/server/Server.cpp
     source/server/ServerMain.cpp
-    ${COMMON_SOURCES}
-    ${UTILS_SOURCES}
+    source/common/Graph.cpp
+    source/common/Protocol.cpp
+    source/utils/InputParser.cpp
 )
 
-# Создаём исполняемый файл сервера
-add_executable(server ${SERVER_SOURCES})
-
-# Подключаем библиотеку для работы с потоками (pthread)
-target_link_libraries(server pthread)
-
-# ===================== КЛИЕНТСКАЯ ЧАСТЬ ======================
-# Исходники клиента
-set(CLIENT_SOURCES
+# Клиент
+add_executable(client
     source/client/Client.cpp
     source/client/ClientMain.cpp
-    ${COMMON_SOURCES}
-    ${UTILS_SOURCES}
+    source/common/Graph.cpp
+    source/common/Protocol.cpp
+    source/utils/InputParser.cpp
 )
 
-# Создаём исполняемый файл клиента
-add_executable(client ${CLIENT_SOURCES})
+# Добавляем utils файлы если они существуют
+if(EXISTS "${CMAKE_SOURCE_DIR}/source/utils/Logger.cpp")
+    target_sources(server PRIVATE source/utils/Logger.cpp)
+    target_sources(client PRIVATE source/utils/Logger.cpp)
+endif()
 
-# Подключаем библиотеку для работы с потоками
+if(EXISTS "${CMAKE_SOURCE_DIR}/source/utils/Validator.cpp")
+    target_sources(server PRIVATE source/utils/Validator.cpp)
+    target_sources(client PRIVATE source/utils/Validator.cpp)
+endif()
+
+target_link_libraries(server pthread)
 target_link_libraries(client pthread)
-
-# ===================== УСТАНОВКА ======================
-# Указываем, куда устанавливать исполняемые файлы
-install(TARGETS server client
-    RUNTIME DESTINATION bin
-)
