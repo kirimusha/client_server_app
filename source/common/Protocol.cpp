@@ -75,7 +75,7 @@ vector<char> responseToBytes(const ServerResponse& response) {
     vector<char> data;
     // Вычисляем количество элементов в пути и общий размер данных
     int path_size = static_cast<int>(response.path.size());
-    int total_size = sizeof(int) + sizeof(double) + sizeof(int) + (path_size * sizeof(int));
+    int total_size = sizeof(int) + sizeof(int) + sizeof(int) + (path_size * sizeof(int));
     
     // Заранее выделяем память для всего блока данных
     // total_size = error_code + path_length + path_size + path_data
@@ -97,10 +97,10 @@ vector<char> responseToBytes(const ServerResponse& response) {
     
     // Копируем path_length (число с плавающей точкой double)
     const char* length_bytes = reinterpret_cast<const char*>(&response.path_length);
-    for (size_t i = 0; i < sizeof(double); i++) {
+    for (size_t i = 0; i < sizeof(int); i++) {
         data[offset + i] = length_bytes[i];
     }
-    offset += sizeof(double); // Сдвигаем позицию на размер double
+    offset += sizeof(int); // Сдвигаем позицию на размер double
     // После копирования path_length:
     // data: [error_code(4b), path_length_byte0, path_length_byte1, ..., path_length_byte7, ...]
     
@@ -146,10 +146,10 @@ ServerResponse bytesToResponse(const vector<char>& data) {
     
     // Восстанавливаем path_length (число с плавающей точкой double)
     char* length_bytes = reinterpret_cast<char*>(&response.path_length);
-    for (size_t i = 0; i < sizeof(double); i++) {
+    for (size_t i = 0; i < sizeof(int); i++) {
         length_bytes[i] = data[offset + i];
     }
-    offset += sizeof(double); // Сдвигаем позицию на размер double
+    offset += sizeof(int); // Сдвигаем позицию на размер double
     // После восстановления path_length:
     // response.path_length = число double, восстановленное из следующих 8 байтов
     

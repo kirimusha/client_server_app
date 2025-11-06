@@ -35,7 +35,7 @@ struct ClientRequest { // Клиент будет отправлять это
 // Ответ от сервера
 struct ServerResponse { // Сервер будет отвечать этим
     int error_code;
-    double path_length;
+    int path_length;
     vector<int> path;  // Список узлов пути
 };
 
