@@ -285,7 +285,7 @@ void Server::processRequest(const ClientRequest& request, const vector<vector<in
             return;
         }
         
-    } catch (const voexception& e) {
+    } catch (const std::exception& e) {
         response.error_code = INVALID_REQUEST;
         response.path_length = 0;
         Logger::error(string("Ошибка при построении графа: ") + e.what());
@@ -326,7 +326,7 @@ void Server::processRequest(const ClientRequest& request, const vector<vector<in
 }
 
 // Отправляет данные по TCP
-bool Server::sendTCP(int socket, const string& data) {
+bool Server::sendTCP(int socket, const vector<char>& data) {
     // Сначала отправляем размер данных (4 байта)
     uint32_t dataSize = data.size();
     uint32_t networkSize = htonl(dataSize); // Преобразуем в сетевой порядок байт
@@ -336,7 +336,7 @@ bool Server::sendTCP(int socket, const string& data) {
     }
     
     // Затем отправляем сами данные
-    if (send(socket, data.c_str(), data.size(), 0) < 0) {
+    if (send(socket, data.data(), data.size(), 0) < 0) {
         return false;
     }
     
@@ -344,7 +344,7 @@ bool Server::sendTCP(int socket, const string& data) {
 }
 
 // Получает данные по TCP
-bool Server::receiveTCP(int socket, string& data) {
+bool Server::receiveTCP(int socket, vector<char>& data) {
     // Сначала читаем размер данных
     uint32_t networkSize;
     int bytesRead = recv(socket, &networkSize, sizeof(networkSize), 0);
@@ -370,19 +370,19 @@ bool Server::receiveTCP(int socket, string& data) {
         return false;
     }
     
-    data.assign(buffer, bytesRead);
+    data.assign(buffer, buffer + bytesRead);
     return true;
 }
 
 // Отправляет данные по UDP
-bool Server::sendUDP(const string& data, const sockaddr_in& clientAddr) {
-    int bytesSent = sendto(serverSocket, data.c_str(), data.size(), 0,
+bool Server::sendUDP(const vector<char>& data, const sockaddr_in& clientAddr) {
+    int bytesSent = sendto(serverSocket, data.data(), data.size(), 0,
                           (sockaddr*)&clientAddr, sizeof(clientAddr));
     return bytesSent > 0;
 }
 
 // Получает данные по UDP
-bool Server::receiveUDP(string& data, sockaddr_in& clientAddr) {
+bool Server::receiveUDP(vector<char>& data, sockaddr_in& clientAddr) {
     char buffer[BUFFER_SIZE];
     socklen_t addrLen = sizeof(clientAddr);
     
@@ -393,6 +393,6 @@ bool Server::receiveUDP(string& data, sockaddr_in& clientAddr) {
         return false;
     }
     
-    data.assign(buffer, bytesRead);
+    data.assign(buffer, buffer + bytesRead);
     return true;
 }

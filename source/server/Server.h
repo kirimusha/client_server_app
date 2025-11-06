@@ -84,26 +84,22 @@ private:
     // Отправляет данные по TCP
     // socket Сокет клиента
     // data Данные для отправки
-    // true, если отправка успешна
-    bool sendTCP(int socket, const string& data);
+    bool sendTCP(int socket, const vector<char>& data);
 
     // Получает данные по TCP
     // socket Сокет клиента
     // data Буфер для полученных данных
-    // true, если получение успешно
-    bool receiveTCP(int socket, string& data);
+    bool receiveTCP(int socket, vector<char>& data);
 
     // Отправляет данные по UDP
     // data Данные для отправки
     // clientAddr Адрес клиента
-    // true, если отправка успешна
-    bool sendUDP(const string& data, const sockaddr_in& clientAddr);
+    bool sendUDP(const vector<char>& data, const sockaddr_in& clientAddr);
 
     // Получает данные по UDP
     // data Буфер для полученных данных
     // clientAddr Адрес клиента (выходной параметр)
-    // true, если получение успешно
-    bool receiveUDP(string& data, sockaddr_in& clientAddr);
+    bool receiveUDP(vector<char>& data, sockaddr_in& clientAddr);
 };
 
 #endif
