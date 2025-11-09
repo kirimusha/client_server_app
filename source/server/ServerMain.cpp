@@ -4,6 +4,8 @@
 #include <iostream>
 #include <csignal>
 #include <cstdlib>
+#include <cstring>
+
 
 using namespace std;
 
@@ -24,14 +26,15 @@ void signalHandler(int signal) {
 
 // Выводит справку по использованию программы
 void printUsage(const char* programName) {
-    cout << "Использование: " << programName << " <порт>" << endl;
+    cout << "Использование: " << programName << " <порт> <протокол>" << endl;
     cout << endl;
     cout << "Параметры:" << endl;
-    cout << "  <порт>  - Номер порта для прослушивания (1024-65535)" << endl;
+    cout << "  <порт>     - Номер порта для прослушивания (1024-65535)" << endl;
+    cout << "  <протокол> - Протокол: tcp или udp" << endl;
     cout << endl;
     cout << "Примеры:" << endl;
-    cout << "  " << programName << " 8080" << endl;
-    cout << "  " << programName << " 12345" << endl;
+    cout << "  " << programName << " 8080 tcp" << endl;
+    cout << "  " << programName << " 12345 udp" << endl;
 }
 
 // Главная функция сервера
@@ -39,7 +42,8 @@ int main(int argc, char* argv[]) {
     // Проверяем количество аргументов
     // argv[0] - имя программы
     // argv[1] - порт
-    if (argc != 2) {
+    // argv[2] - протокол
+    if (argc != 3) {
         Logger::error("Неверное количество аргументов");
         printUsage(argv[0]);
         return 1;
@@ -61,9 +65,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // По умолчанию используем TCP
-    // (можно расширить, добавив параметр командной строки для выбора протокола)
-    string protocol = "tcp";
+    // Получаем протокол (теперь обязательный параметр)
+    string protocol = argv[2];
+    if (protocol != "tcp" && protocol != "udp") {
+        Logger::error("Протокол должен быть 'tcp' или 'udp'");
+        printUsage(argv[0]);
+        return 1;
+    }
     
     // Создаём сервер
     Server server(port, protocol);
