@@ -1,0 +1,4 @@
+/home/kirimusha/client_server_app/build/CMakeFiles/server.dir
+/home/kirimusha/client_server_app/build/CMakeFiles/client.dir
+/home/kirimusha/client_server_app/build/CMakeFiles/edit_cache.dir
+/home/kirimusha/client_server_app/build/CMakeFiles/rebuild_cache.dir
