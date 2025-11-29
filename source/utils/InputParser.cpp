@@ -1,4 +1,5 @@
 #include "InputParser.h"
+#include "FileReader.h"
 #include <sstream>
 #include <fstream>
 #include <algorithm>
@@ -142,4 +143,25 @@ vector<string> InputParser::split(const string& str, char delimiter) {
     }
     
     return tokens;
+}
+
+bool InputParser::hasFileInput(const std::string& input) {
+    return input.find("file:") == 0 || input.find(".txt") != std::string::npos;
+}
+
+std::string InputParser::extractFilename(const std::string& input) {
+    if (input.find("file:") == 0) {
+        return input.substr(5); // убираем "file:"
+    }
+    return input;
+}
+
+Graph InputParser::parseGraphFromFile(const std::string& filename) {
+    std::string cleanFilename = extractFilename(filename);
+    
+    if (!FileReader::validateGraphFile(cleanFilename)) {
+        throw std::invalid_argument("Invalid graph file: " + cleanFilename);
+    }
+    
+    return FileReader::readGraphFromFile(cleanFilename);
 }

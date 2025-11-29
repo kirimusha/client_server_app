@@ -63,16 +63,16 @@ bool Validator::isValidProtocol(const string& protocol) {
 }
 
 // Проверяет размер графа на соответствие требованиям
-bool Validator::isValidGraphSize(int numVertices, int numEdges, string& errorMessage) {
+bool Validator::isValidGraphSize(int numVertices, string& errorMessage) {
     // Проверка минимального размера
-    if (numVertices < MIN_VERTICES || numEdges < MIN_EDGES) {
-        errorMessage = "Граф должен содержать не менее 6 вершин и 6 рёбер";
+    if (numVertices < MIN_VERTICES) {
+        errorMessage = "Граф должен содержать не менее 6 вершин";
         return false;
     }
     
     // Проверка максимального размера
-    if (numVertices > MAX_VERTICES || numEdges > MAX_EDGES) {
-        errorMessage = "Граф должен содержать не более 20 вершин и 20 рёбер";
+    if (numVertices > MAX_VERTICES) {
+        errorMessage = "Граф должен содержать не более 20 вершин";
         return false;
     }
     

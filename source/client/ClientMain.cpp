@@ -5,6 +5,8 @@
 #include <iostream>
 #include <algorithm>
 #include <map>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -22,10 +24,100 @@ void printUsage(const char* programName) {
     cout << "  " << programName << " 192.168.1.10 udp 12345" << endl;
 }
 
+// Проверяет, является ли ввод ссылкой на файл
+bool isFileInput(const string& input) {
+    return input.find("file:") == 0 || 
+           input.find(".txt") != string::npos ||
+           input.find(".graph") != string::npos;
+}
+
+// Извлекает имя файла из ввода
+string extractFilename(const string& input) {
+    if (input.find("file:") == 0) {
+        return input.substr(5); // убираем "file:"
+    }
+    return input;
+}
+
+// Читает граф из файла
+bool readGraphFromFile(const string& filename, vector<InputParser::Edge>& edges, string& errorMsg) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        errorMsg = "Не удалось открыть файл: " + filename;
+        return false;
+    }
+    
+    string line;
+    int lineNum = 0;
+    
+    while (getline(file, line)) {
+        lineNum++;
+        
+        // Пропускаем пустые строки и комментарии
+        if (line.empty() || line[0] == '#') continue;
+        
+        // Убираем лишние пробелы
+        line.erase(0, line.find_first_not_of(" \t"));
+        line.erase(line.find_last_not_of(" \t") + 1);
+        
+        if (line.empty()) continue;
+        
+        // Парсим строку с рёбрами
+        if (!InputParser::parseGraph(line, edges)) {
+            errorMsg = "Ошибка в строке " + to_string(lineNum) + ": " + line;
+            file.close();
+            return false;
+        }
+    }
+    
+    file.close();
+    
+    if (edges.empty()) {
+        errorMsg = "Файл не содержит корректных рёбер графа";
+        return false;
+    }
+    
+    return true;
+}
+
+// Валидирует файл графа
+bool validateGraphFile(const string& filename, string& errorMsg) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        errorMsg = "Файл не найден: " + filename;
+        return false;
+    }
+    
+    string line;
+    int lineNum = 0;
+    vector<InputParser::Edge> testEdges;
+    
+    while (getline(file, line)) {
+        lineNum++;
+        if (line.empty() || line[0] == '#') continue;
+        
+        if (!InputParser::parseGraph(line, testEdges)) {
+            errorMsg = "Неверный формат в строке " + to_string(lineNum) + ": " + line;
+            file.close();
+            return false;
+        }
+    }
+    
+    file.close();
+    
+    if (testEdges.empty()) {
+        errorMsg = "Файл не содержит корректных данных графа";
+        return false;
+    }
+    
+    return true;
+}
+
 // Обрабатывает один запрос клиента
 bool processClientRequest(Client& client) {
-    // Ввод описания графа
-    cout << "\nВведите описание графа (формат: A B, B C, C D, ...):" << endl;
+    // Ввод описания графа или имени файла
+    cout << "\nВведите описание графа (формат: A B, B C, C D, ...)" << endl;
+    cout << "или имя файла (file:graph.txt или просто graph.txt)" << endl;
     cout << "или 'exit' для завершения работы: ";
     
     string graphInput;
@@ -36,11 +128,33 @@ bool processClientRequest(Client& client) {
         return false;
     }
     
-    // Парсим граф (получаем рёбра со строковыми именами)
     vector<InputParser::Edge> stringEdges;
-    if (!InputParser::parseGraph(graphInput, stringEdges)) {
-        Logger::error("Неверный формат ввода графа");
-        return true; // Продолжаем работу
+    
+    // Обрабатываем ввод из файла
+    if (isFileInput(graphInput)) {
+        string filename = extractFilename(graphInput);
+        string errorMsg;
+        
+        // Валидируем файл
+        if (!validateGraphFile(filename, errorMsg)) {
+            Logger::error(errorMsg);
+            return true;
+        }
+        
+        // Читаем граф из файла
+        if (!readGraphFromFile(filename, stringEdges, errorMsg)) {
+            Logger::error(errorMsg);
+            return true;
+        }
+        
+        Logger::info("Граф успешно загружен из файла: " + filename);
+    } 
+    // Обрабатываем прямой ввод
+    else {
+        if (!InputParser::parseGraph(graphInput, stringEdges)) {
+            Logger::error("Неверный формат ввода графа");
+            return true;
+        }
     }
     
     // ПРЕОБРАЗУЕМ СТРОКОВЫЕ ИМЕНА В ЧИСЛОВЫЕ ИНДЕКСЫ ВРУЧНУЮ
@@ -64,10 +178,9 @@ bool processClientRequest(Client& client) {
     
     // Валидация размера графа
     int numVertices = vertexMap.size();
-    int numEdges = edges.size();
     
     string errorMessage;
-    if (!Validator::isValidGraphSize(numVertices, numEdges, errorMessage)) {
+    if (!Validator::isValidGraphSize(numVertices, errorMessage)) {
         Logger::error(errorMessage);
         return true;
     }

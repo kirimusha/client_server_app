@@ -14,22 +14,28 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/source/client
 )
 
-# Сервер
-add_executable(server
-    source/server/Server.cpp
-    source/server/ServerMain.cpp
-    source/common/Graph.cpp
+# Для клиента
+add_executable(client
+    source/client/ClientMain.cpp
+    source/client/Client.cpp
     source/common/Protocol.cpp
     source/utils/InputParser.cpp
+    source/utils/Validator.cpp
+    source/utils/Logger.cpp
+    source/utils/FileReader.cpp 
+    source/common/Graph.cpp
 )
 
-# Клиент
-add_executable(client
-    source/client/Client.cpp
-    source/client/ClientMain.cpp
-    source/common/Graph.cpp
+# Для сервера
+add_executable(server
+    source/server/ServerMain.cpp
+    source/server/Server.cpp
     source/common/Protocol.cpp
+    source/common/Graph.cpp
     source/utils/InputParser.cpp
+    source/utils/Validator.cpp
+    source/utils/Logger.cpp
+    source/utils/FileReader.cpp  # Добавьте если создали
 )
 
 # Добавляем utils файлы если они существуют

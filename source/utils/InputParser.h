@@ -5,6 +5,8 @@
 #include <vector>
 #include <utility>
 
+#include "../common/Graph.h"
+
 using namespace std;
 
 //  Класс для парсинга входных данных
@@ -67,6 +69,9 @@ public:
     // trim("\ttest\n") -> "test"
     
     static string trim(const string& str);
+    static bool hasFileInput(const std::string& input);
+    static std::string extractFilename(const std::string& input);
+    static Graph parseGraphFromFile(const std::string& filename);
 
 private:
     // Разбивает строку по разделителю

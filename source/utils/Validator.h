@@ -52,10 +52,10 @@ public:
     // true, если граф валиден
     
     // Требования:
-    // - Минимум 6 вершин и 6 рёбер
-    // - Максимум 20 вершин и 20 рёбер
+    // - Минимум 6 вершин
+    // - Максимум 20 вершин
     
-    static bool isValidGraphSize(int numVertices, int numEdges, string& errorMessage);
+    static bool isValidGraphSize(int numVertices, string& errorMessage);
 
     // Проверяет, что вершина существует в списке
     // vertex Имя вершины
@@ -69,9 +69,7 @@ private:
     static const int MIN_PORT = 1024;      // Минимальный номер порта
     static const int MAX_PORT = 65535;     // Максимальный номер порта
     static const int MIN_VERTICES = 6;     // Минимум вершин в графе
-    static const int MIN_EDGES = 6;        // Минимум рёбер в графе
     static const int MAX_VERTICES = 20;    // Максимум вершин в графе
-    static const int MAX_EDGES = 20;       // Максимум рёбер в графе
 };
 
 #endif
