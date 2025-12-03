@@ -1,1 +1,1 @@
-A B, B C, C D, D E, E F, F G
+A B, B C, C D, D E, E F, F G, A C, B D

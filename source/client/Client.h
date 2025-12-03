@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <atomic>
 #include <netinet/in.h>
 #include "Protocol.h"
 
@@ -59,16 +60,34 @@ public:
     bool isConnected() const;
 
 private:
-    string serverIP;        // IP-адрес сервера
+    string serverIP;             // IP-адрес сервера
     int serverPort;              // Порт сервера
-    string protocol;        // Тип протокола (tcp/udp)
+    string protocol;             // Тип протокола (tcp/udp)
     int clientSocket;            // Дескриптор сокета
     sockaddr_in serverAddr;      // Адрес сервера
     bool connected;              // Флаг состояния подключения
+    
+    // Для надёжной UDP-доставки
+    atomic<uint32_t> nextPacketId;
 
     // Создаёт сокет клиента
     // true, если сокет успешно создан
     bool createSocket();
+    
+    // Отправляет данные с подтверждением (надёжная UDP-доставка)
+    // payload Данные для отправки
+    bool sendWithAck(const vector<char>& payload);
+    
+    // Ожидает подтверждение (ACK) от сервера
+    // expected_packet_id Ожидаемый ID пакета
+    bool waitForAck(uint32_t expected_packet_id);
+    
+    // Получает ответ от сервера
+    // responseData Буфер для полученных данных
+    bool receiveResponse(vector<char>& responseData);
+    
+    // Получает следующий ID пакета
+    uint32_t getNextPacketId();
 
     // Отправляет запрос по TCP
     // data Сериализованные данные запроса
@@ -84,13 +103,6 @@ private:
     // data Сериализованные данные запроса
     // true, если отправка успешна
     bool sendUDP(const vector<char>& data);
-
-    // Получает ответ по UDP с повторными попытками
-    // data Буфер для полученных данных
-    // true, если получение успешно
-    
-    // UDP не гарантирует доставку, поэтому делаем до 3 попыток
-    bool receiveUDP(vector<char>& data);
 };
 
 #endif
